@@ -1,5 +1,6 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Form
+from fastapi.responses import RedirectResponse
 import uvicorn
 from sqlmodel import create_engine, SQLModel, Session, select
 from models.models import *
@@ -74,7 +75,26 @@ def populate_db():
 
 @app.get("/")
 def index():
-    pass
+    return RedirectResponse(url="/login")
+
+
+@app.get("/login")
+def loginGet():
+    return "Login HTML"
+
+@app.post("/login")
+def loginPost(username: str = Form(...), password: str = Form(...)):
+    
+    with Session(engine) as session:
+
+        sqlResponse= session.query(User).filter(User.username == username).first()
+
+        if sqlResponse!=None:
+            if auth_handler.verify_password(password,sqlResponse.password):
+                return "Login Success"
+            
+        return "Login Failed"
+            
 
 if __name__ == '__main__':
     create_db_tables_populate()
