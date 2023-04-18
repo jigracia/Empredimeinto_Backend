@@ -23,6 +23,7 @@ class Depto(SQLModel, table=True):
 
 class User(SQLModel, table=True):
     id: int = Field(primary_key=True)
+    anon: bool = Field(default=False)
     username: str
     name: str
     password: str

@@ -1,13 +1,18 @@
+import os
 from fastapi import FastAPI
 import uvicorn
 from sqlmodel import create_engine, SQLModel, Session, select
 from models.models import *
+from auth.auth import *
 
 app = FastAPI()
+auth_handler= AuthHandler()
 
 engine = create_engine("sqlite:///database.db")
 
 def create_db_tables_populate():
+    if os.path.exists("database.db"):
+        os.remove("database.db")
     SQLModel.metadata.create_all(engine)
     populate_db()
 
@@ -21,13 +26,22 @@ def populate_db():
         session.add(depto2)
 
         #Users
-        user1 = User(id=1,username="ed34depto32",name="Joaquin",password="123",id_depto=depto1.id,numero_depto=32,cantidad_personas=2)
-        user2 = User(id=2,username="ed34depto55",name="Matias",password="123",id_depto=depto1.id,numero_depto=55,cantidad_personas=4)
-        user3 = User(id=3,username="ed11depto12",name="Nicolas",password="123",id_depto=depto2.id,numero_depto=12,cantidad_personas=1)
+        password = auth_handler.get_password_hash("123")
+
+        user1 = User(id=1,username="ed34Anon",name="Anon",password=password,id_depto=depto1.id,numero_depto=0,cantidad_personas=1, anon=True)
+
+        user2 = User(id=2,username="ed34depto32",name="Joaquin",password=password,id_depto=depto1.id,numero_depto=32,cantidad_personas=2)
+        user3 = User(id=3,username="ed34depto55",name="Matias",password=password,id_depto=depto1.id,numero_depto=55,cantidad_personas=4)
+
+        user4 = User(id=4,username="ed11Anon",name="Anon",password=password,id_depto=depto2.id,numero_depto=0,cantidad_personas=1, anon=True)
+
+        user5 = User(id=5,username="ed11depto12",name="Nicolas",password=password,id_depto=depto2.id,numero_depto=12,cantidad_personas=1)
 
         session.add(user1)
         session.add(user2)
         session.add(user3)
+        session.add(user4)
+        session.add(user5)
 
         #Sala Basura
         salaBasura1 = SalaBasura(id_carousel=1, url_carousel="URL", id_depto=depto1.id)
@@ -60,10 +74,7 @@ def populate_db():
 
 @app.get("/")
 def index():
-    with Session(engine) as session:
-        stmt = select(User, Depto).join(Depto, User.id_depto == Depto.id)
-        users = session.exec(stmt).all()
-    return users
+    pass
 
 if __name__ == '__main__':
     create_db_tables_populate()
