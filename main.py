@@ -183,6 +183,7 @@ async def userwasteinfo(request: Request, item: dict = Body(...)):
 @app.post("/deptowasteinfo")
 async def deptowasteinfo(request: Request, item: dict = Body(...)):
     chartData=[]
+    leaderBoard=[]
 
     totalSumPlas=0
     totalSumVidr=0
@@ -191,15 +192,21 @@ async def deptowasteinfo(request: Request, item: dict = Body(...)):
     totalSumPlasMONTH=0
     totalSumVidrMONTH=0
     totalSumLatMONTH=0
+
+    totalSumPlasYEAR=0
+    totalSumVidrYEAR=0
+    totalSumLatYEAR=0
     
     with Session(engine) as session:
 
         id_depto= session.query(User).filter(User.id == item["user_id"]).first().id_depto
         stmt = select(Depto.name,Depto.direccion, Desecho.tipo, Desecho.peso, Desecho.date).join(User, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user).where(Depto.id == id_depto)
         stmt2 = select(func.extract('year', Desecho.date).label('year'),func.extract('month', Desecho.date).label('month'),func.sum(Desecho.peso)).select_from(Depto.__table__.join(User, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user)).where(Depto.id == id_depto).where(Desecho.tipo!=4).group_by(func.extract('year', Desecho.date),func.extract('month', Desecho.date))
+        stmt3 = select(User.numero_depto,func.sum(Desecho.peso)).join(Depto, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user).where(Depto.id == id_depto).group_by(User.numero_depto).order_by(func.sum(Desecho.peso).desc()).limit(5)
         
         results = session.exec(stmt).all()
         results2 = session.exec(stmt2).all()
+        results3 = session.exec(stmt3).all()
 
         for data in results:
             if(data["date"].month ==datetime.datetime.now().month):
@@ -211,6 +218,15 @@ async def deptowasteinfo(request: Request, item: dict = Body(...)):
                 if (data["tipo"]==3):
                     totalSumLatMONTH+=data["peso"]
 
+            if(data["date"].year ==datetime.datetime.now().year):
+
+                if (data["tipo"]==1):
+                    totalSumPlasYEAR+=data["peso"]
+                if (data["tipo"]==2):
+                    totalSumVidrYEAR+=data["peso"]
+                if (data["tipo"]==3):
+                    totalSumLatYEAR+=data["peso"]
+
             if (data["tipo"]==1):
                 totalSumPlas+=data["peso"]
             if (data["tipo"]==2):
@@ -220,6 +236,9 @@ async def deptowasteinfo(request: Request, item: dict = Body(...)):
         
         for data in results2:
             chartData.append(data)
+        
+        for data in results3:
+            leaderBoard.append(data)
 
         return {
             "name":results[0]["name"],
@@ -230,7 +249,11 @@ async def deptowasteinfo(request: Request, item: dict = Body(...)):
             "totalSumPlasMONTH":totalSumPlasMONTH,
             "totalSumVidrMONTH":totalSumVidrMONTH,
             "totalSumLaMONTH":totalSumLatMONTH,
-            "chartData":chartData
+            "totalSumPlasYEAR":totalSumPlasYEAR,
+            "totalSumVidrYEAR":totalSumVidrYEAR,
+            "totalSumLaYEAR":totalSumLatYEAR,
+            "chartData":chartData,
+            "leaderboard":leaderBoard
         }
 
 if __name__ == '__main__':
