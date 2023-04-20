@@ -1,8 +1,9 @@
 import os
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Request, Body
 from fastapi.responses import RedirectResponse
 import uvicorn
 from sqlmodel import create_engine, SQLModel, Session, select
+from fastapi.middleware.cors import CORSMiddleware
 from models.models import *
 from auth.auth import *
 
@@ -10,6 +11,16 @@ app = FastAPI()
 auth_handler= AuthHandler()
 
 engine = create_engine("sqlite:///database.db")
+
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def create_db_tables_populate():
     if os.path.exists("database.db"):
@@ -73,28 +84,48 @@ def populate_db():
         session.commit()
 
 
-@app.get("/")
-def index():
-    return RedirectResponse(url="/login")
-
-
-@app.get("/login")
-def loginGet():
-    return "Login HTML"
-
 @app.post("/login")
-def loginPost(username: str = Form(...), password: str = Form(...)):
-    
+async def login(request: Request, item: dict = Body(...)):
     with Session(engine) as session:
 
-        sqlResponse= session.query(User).filter(User.username == username).first()
+        sqlResponse= session.query(User).filter(User.username == item["username"]).first()
 
         if sqlResponse!=None:
-            if auth_handler.verify_password(password,sqlResponse.password):
-                return "Login Success"
+            if auth_handler.verify_password(item["password"],sqlResponse.password):
+                raise HTTPException(status_code=200, detail= str(sqlResponse.id))
             
-        return "Login Failed"
-            
+        raise HTTPException(status_code=401, detail="Bad Credentials")
+
+@app.post("/dispose")
+async def dispose(request: Request, item: dict = Body(...)):
+
+
+    with Session(engine) as session:
+
+        sqlResponse= session.query(User).filter(User.username == item["username"]).first()
+        userID=sqlResponse.id
+        
+        newDesecho= Desecho(tipo=DesechoEnum(item["desecho"]),peso=item["peso"], id_user=userID)
+        session.add(newDesecho)
+        session.commit()
+
+        raise HTTPException(status_code=200, detail="Waste Disposed")
+
+@app.post("/userinfo")
+async def userinfo(request: Request, item: dict = Body(...)):
+    with Session(engine) as session:
+
+        stmt = select(User.username, User.name, Depto.name).join(Depto, User.id_depto == Depto.id).where(User.id == item["user_id"])
+
+        # Execute the query and fetch the results
+        results = session.exec(stmt).all()
+
+        return {
+            "username":results[0]["username"],
+            "name":results[0]["name"],
+            "depto_name":results[0]["name_1"]
+        }
+
 
 if __name__ == '__main__':
     create_db_tables_populate()
