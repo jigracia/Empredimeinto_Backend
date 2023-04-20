@@ -143,7 +143,7 @@ async def userwasteinfo(request: Request, item: dict = Body(...)):
     with Session(engine) as session:
 
         stmt = select(User.name, Depto.name,Desecho.tipo, Desecho.peso, Desecho.date).join(Depto, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user).where(User.id == item["user_id"])
-        stmt2 = select(func.extract('year', Desecho.date).label('year'),func.extract('month', Desecho.date).label('month'),func.sum(Desecho.peso)).select_from(User.__table__.join(Desecho, User.id == Desecho.id_user)).where(User.id == item["user_id"]).group_by(func.extract('year', Desecho.date),func.extract('month', Desecho.date))
+        stmt2 = select(func.extract('year', Desecho.date).label('year'),func.extract('month', Desecho.date).label('month'),func.sum(Desecho.peso)).select_from(User.__table__.join(Desecho, User.id == Desecho.id_user)).where(User.id == item["user_id"]).where(Desecho.tipo!=4).group_by(func.extract('year', Desecho.date),func.extract('month', Desecho.date))
         # Execute the query and fetch the results
         results = session.exec(stmt).all()
         results2 = session.exec(stmt2).all()
@@ -174,7 +174,60 @@ async def userwasteinfo(request: Request, item: dict = Body(...)):
             "totalSumPlas":totalSumPlas,
             "totalSumVidr":totalSumVidr,
             "totalSumLat":totalSumLat,
-            "totalSumPlasMONTH":results[0]["date"],
+            "totalSumPlasMONTH":totalSumPlasMONTH,
+            "totalSumVidrMONTH":totalSumVidrMONTH,
+            "totalSumLaMONTH":totalSumLatMONTH,
+            "chartData":chartData
+        }
+
+@app.post("/deptowasteinfo")
+async def deptowasteinfo(request: Request, item: dict = Body(...)):
+    chartData=[]
+
+    totalSumPlas=0
+    totalSumVidr=0
+    totalSumLat=0
+
+    totalSumPlasMONTH=0
+    totalSumVidrMONTH=0
+    totalSumLatMONTH=0
+    
+    with Session(engine) as session:
+
+        id_depto= session.query(User).filter(User.id == item["user_id"]).first().id_depto
+        stmt = select(Depto.name,Depto.direccion, Desecho.tipo, Desecho.peso, Desecho.date).join(User, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user).where(Depto.id == id_depto)
+        stmt2 = select(func.extract('year', Desecho.date).label('year'),func.extract('month', Desecho.date).label('month'),func.sum(Desecho.peso)).select_from(Depto.__table__.join(User, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user)).where(Depto.id == id_depto).where(Desecho.tipo!=4).group_by(func.extract('year', Desecho.date),func.extract('month', Desecho.date))
+        
+        results = session.exec(stmt).all()
+        results2 = session.exec(stmt2).all()
+
+        for data in results:
+            if(data["date"].month ==datetime.datetime.now().month):
+
+                if (data["tipo"]==1):
+                    totalSumPlasMONTH+=data["peso"]
+                if (data["tipo"]==2):
+                    totalSumVidrMONTH+=data["peso"]
+                if (data["tipo"]==3):
+                    totalSumLatMONTH+=data["peso"]
+
+            if (data["tipo"]==1):
+                totalSumPlas+=data["peso"]
+            if (data["tipo"]==2):
+                totalSumVidr+=data["peso"]
+            if (data["tipo"]==3):
+                totalSumLat+=data["peso"]
+        
+        for data in results2:
+            chartData.append(data)
+
+        return {
+            "name":results[0]["name"],
+            "address":results[0]["direccion"],
+            "totalSumPlas":totalSumPlas,
+            "totalSumVidr":totalSumVidr,
+            "totalSumLat":totalSumLat,
+            "totalSumPlasMONTH":totalSumPlasMONTH,
             "totalSumVidrMONTH":totalSumVidrMONTH,
             "totalSumLaMONTH":totalSumLatMONTH,
             "chartData":chartData
