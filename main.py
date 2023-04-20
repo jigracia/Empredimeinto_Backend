@@ -130,7 +130,7 @@ async def userinfo(request: Request, item: dict = Body(...)):
 
 @app.post("/userwasteinfo")
 async def userwasteinfo(request: Request, item: dict = Body(...)):
-    chartData={}
+    chartData=[]
 
     totalSumPlas=0
     totalSumVidr=0
@@ -143,7 +143,7 @@ async def userwasteinfo(request: Request, item: dict = Body(...)):
     with Session(engine) as session:
 
         stmt = select(User.name, Depto.name,Desecho.tipo, Desecho.peso, Desecho.date).join(Depto, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user).where(User.id == item["user_id"])
-        stmt2 = select(func.extract('year', Desecho.date).label('year'),func.sum(Desecho.peso)).select_from(Desecho.__table__.join(Depto, User.id_depto == Depto.id)).where(User.id == item["user_id"]).group_by(func.extract('year', Desecho.date))
+        stmt2 = select(func.extract('year', Desecho.date).label('year'),func.extract('month', Desecho.date).label('month'),func.sum(Desecho.peso)).select_from(User.__table__.join(Desecho, User.id == Desecho.id_user)).where(User.id == item["user_id"]).group_by(func.extract('year', Desecho.date),func.extract('month', Desecho.date))
         # Execute the query and fetch the results
         results = session.exec(stmt).all()
         results2 = session.exec(stmt2).all()
@@ -165,9 +165,10 @@ async def userwasteinfo(request: Request, item: dict = Body(...)):
             if (data["tipo"]==3):
                 totalSumLat+=data["peso"]
         
-        return results2
-
-        '''return {
+        for data in results2:
+            chartData.append(data)
+        
+        return {
             "username":results[0]["name"],
             "depto_name":results[0]["name_1"],
             "totalSumPlas":totalSumPlas,
@@ -176,7 +177,8 @@ async def userwasteinfo(request: Request, item: dict = Body(...)):
             "totalSumPlasMONTH":results[0]["date"],
             "totalSumVidrMONTH":totalSumVidrMONTH,
             "totalSumLaMONTH":totalSumLatMONTH,
-        }'''
+            "chartData":chartData
+        }
 
 if __name__ == '__main__':
     create_db_tables_populate()
