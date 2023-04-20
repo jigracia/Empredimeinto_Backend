@@ -2,10 +2,12 @@ import os
 from fastapi import FastAPI, Request, Body
 from fastapi.responses import RedirectResponse
 import uvicorn
-from sqlmodel import create_engine, SQLModel, Session, select
+from datetime import datetime
+from sqlmodel import create_engine, SQLModel, Session, select, func
 from fastapi.middleware.cors import CORSMiddleware
 from models.models import *
 from auth.auth import *
+
 
 app = FastAPI()
 auth_handler= AuthHandler()
@@ -64,13 +66,13 @@ def populate_db():
 
         #Desechos
         desecho1 = Desecho(tipo=DesechoEnum.vidrio,peso=2.3, id_user=user1.id)
-        desecho2 = Desecho(tipo=DesechoEnum.lata,peso=2, id_user=user1.id)
-        desecho3 = Desecho(tipo=DesechoEnum.basura,peso=3, id_user=user1.id)
-        desecho4 = Desecho(tipo=DesechoEnum.lata,peso=1.2, id_user=user1.id)
-        desecho5 = Desecho(tipo=DesechoEnum.lata,peso=1.1, id_user=user1.id)
-        desecho6 = Desecho(tipo=DesechoEnum.plastico,peso=0.76, id_user=user1.id)
-        desecho7 = Desecho(tipo=DesechoEnum.basura,peso=1.5, id_user=user1.id)
-        desecho8 = Desecho(tipo=DesechoEnum.plastico,peso=6, id_user=user1.id)
+        desecho2 = Desecho(tipo=DesechoEnum.lata,peso=2, id_user=user2.id)
+        desecho3 = Desecho(tipo=DesechoEnum.basura,peso=3, id_user=user2.id)
+        desecho4 = Desecho(tipo=DesechoEnum.lata,peso=1.2, id_user=user3.id)
+        desecho5 = Desecho(tipo=DesechoEnum.lata,peso=1.1, id_user=user4.id)
+        desecho6 = Desecho(tipo=DesechoEnum.plastico,peso=0.76, id_user=user5.id)
+        desecho7 = Desecho(tipo=DesechoEnum.basura,peso=1.5, id_user=user5.id)
+        desecho8 = Desecho(tipo=DesechoEnum.plastico,peso=6, id_user=user3.id)
 
         session.add(desecho1)
         session.add(desecho2)
@@ -126,6 +128,55 @@ async def userinfo(request: Request, item: dict = Body(...)):
             "depto_name":results[0]["name_1"]
         }
 
+@app.post("/userwasteinfo")
+async def userwasteinfo(request: Request, item: dict = Body(...)):
+    chartData={}
+
+    totalSumPlas=0
+    totalSumVidr=0
+    totalSumLat=0
+
+    totalSumPlasMONTH=0
+    totalSumVidrMONTH=0
+    totalSumLatMONTH=0
+    
+    with Session(engine) as session:
+
+        stmt = select(User.name, Depto.name,Desecho.tipo, Desecho.peso, Desecho.date).join(Depto, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user).where(User.id == item["user_id"])
+        stmt2 = select(func.extract('year', Desecho.date).label('year'),func.sum(Desecho.peso)).select_from(Desecho.__table__.join(Depto, User.id_depto == Depto.id)).where(User.id == item["user_id"]).group_by(func.extract('year', Desecho.date))
+        # Execute the query and fetch the results
+        results = session.exec(stmt).all()
+        results2 = session.exec(stmt2).all()
+
+        for data in results:
+            if(data["date"].month ==datetime.datetime.now().month):
+
+                if (data["tipo"]==1):
+                    totalSumPlasMONTH+=data["peso"]
+                if (data["tipo"]==2):
+                    totalSumVidrMONTH+=data["peso"]
+                if (data["tipo"]==3):
+                    totalSumLatMONTH+=data["peso"]
+
+            if (data["tipo"]==1):
+                totalSumPlas+=data["peso"]
+            if (data["tipo"]==2):
+                totalSumVidr+=data["peso"]
+            if (data["tipo"]==3):
+                totalSumLat+=data["peso"]
+        
+        return results2
+
+        '''return {
+            "username":results[0]["name"],
+            "depto_name":results[0]["name_1"],
+            "totalSumPlas":totalSumPlas,
+            "totalSumVidr":totalSumVidr,
+            "totalSumLat":totalSumLat,
+            "totalSumPlasMONTH":results[0]["date"],
+            "totalSumVidrMONTH":totalSumVidrMONTH,
+            "totalSumLaMONTH":totalSumLatMONTH,
+        }'''
 
 if __name__ == '__main__':
     create_db_tables_populate()
