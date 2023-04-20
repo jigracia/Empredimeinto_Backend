@@ -94,7 +94,7 @@ async def login(request: Request, item: dict = Body(...)):
 
         if sqlResponse!=None:
             if auth_handler.verify_password(item["password"],sqlResponse.password):
-                raise HTTPException(status_code=200, detail= str(sqlResponse.id))
+                return str(sqlResponse.id)
             
         raise HTTPException(status_code=401, detail="Bad Credentials")
 
@@ -117,15 +117,12 @@ async def dispose(request: Request, item: dict = Body(...)):
 async def userinfo(request: Request, item: dict = Body(...)):
     with Session(engine) as session:
 
-        stmt = select(User.username, User.name, Depto.name).join(Depto, User.id_depto == Depto.id).where(User.id == item["user_id"])
-
-        # Execute the query and fetch the results
-        results = session.exec(stmt).all()
+        sqlResponse= session.query(User).filter(User.id == item["user_id"]).first()
 
         return {
-            "username":results[0]["username"],
-            "name":results[0]["name"],
-            "depto_name":results[0]["name_1"]
+            "username":sqlResponse.username,
+            "name":sqlResponse.name,
+            "depto_number":sqlResponse.numero_depto
         }
 
 @app.post("/userwasteinfo")
@@ -142,7 +139,7 @@ async def userwasteinfo(request: Request, item: dict = Body(...)):
     
     with Session(engine) as session:
 
-        stmt = select(User.name, Depto.name,Desecho.tipo, Desecho.peso, Desecho.date).join(Depto, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user).where(User.id == item["user_id"])
+        stmt = select(User.name,User.numero_depto, Depto.name,Desecho.tipo, Desecho.peso, Desecho.date).join(Depto, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user).where(User.id == item["user_id"])
         stmt2 = select(func.extract('year', Desecho.date).label('year'),func.extract('month', Desecho.date).label('month'),func.sum(Desecho.peso)).select_from(User.__table__.join(Desecho, User.id == Desecho.id_user)).where(User.id == item["user_id"]).where(Desecho.tipo!=4).group_by(func.extract('year', Desecho.date),func.extract('month', Desecho.date))
         # Execute the query and fetch the results
         results = session.exec(stmt).all()
@@ -171,12 +168,14 @@ async def userwasteinfo(request: Request, item: dict = Body(...)):
         return {
             "username":results[0]["name"],
             "depto_name":results[0]["name_1"],
+            "depto_number":results[0]["numero_depto"],
+            "totalSum":totalSumPlas+totalSumVidr+totalSumLat,
             "totalSumPlas":totalSumPlas,
             "totalSumVidr":totalSumVidr,
             "totalSumLat":totalSumLat,
             "totalSumPlasMONTH":totalSumPlasMONTH,
             "totalSumVidrMONTH":totalSumVidrMONTH,
-            "totalSumLaMONTH":totalSumLatMONTH,
+            "totalSumLatMONTH":totalSumLatMONTH,
             "chartData":chartData
         }
 
@@ -203,7 +202,8 @@ async def deptowasteinfo(request: Request, item: dict = Body(...)):
         stmt = select(Depto.name,Depto.direccion, Desecho.tipo, Desecho.peso, Desecho.date).join(User, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user).where(Depto.id == id_depto)
         stmt2 = select(func.extract('year', Desecho.date).label('year'),func.extract('month', Desecho.date).label('month'),func.sum(Desecho.peso)).select_from(Depto.__table__.join(User, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user)).where(Depto.id == id_depto).where(Desecho.tipo!=4).group_by(func.extract('year', Desecho.date),func.extract('month', Desecho.date))
         stmt3 = select(User.numero_depto,func.sum(Desecho.peso)).join(Depto, User.id_depto == Depto.id).join(Desecho, User.id == Desecho.id_user).where(Depto.id == id_depto).group_by(User.numero_depto).order_by(func.sum(Desecho.peso).desc()).limit(5)
-        
+        sqlResponse= session.query(User).filter(User.id == item["user_id"]).first()
+
         results = session.exec(stmt).all()
         results2 = session.exec(stmt2).all()
         results3 = session.exec(stmt3).all()
@@ -241,17 +241,20 @@ async def deptowasteinfo(request: Request, item: dict = Body(...)):
             leaderBoard.append(data)
 
         return {
-            "name":results[0]["name"],
+            "username":sqlResponse.name,
+            "depto_number":sqlResponse.numero_depto,
+            "depto_name":results[0]["name"],
             "address":results[0]["direccion"],
+            "totalSum":totalSumPlas+totalSumVidr+totalSumLat,
             "totalSumPlas":totalSumPlas,
             "totalSumVidr":totalSumVidr,
             "totalSumLat":totalSumLat,
             "totalSumPlasMONTH":totalSumPlasMONTH,
             "totalSumVidrMONTH":totalSumVidrMONTH,
-            "totalSumLaMONTH":totalSumLatMONTH,
+            "totalSumLatMONTH":totalSumLatMONTH,
             "totalSumPlasYEAR":totalSumPlasYEAR,
             "totalSumVidrYEAR":totalSumVidrYEAR,
-            "totalSumLaYEAR":totalSumLatYEAR,
+            "totalSumLatYEAR":totalSumLatYEAR,
             "chartData":chartData,
             "leaderboard":leaderBoard
         }
